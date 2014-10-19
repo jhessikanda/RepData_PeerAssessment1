@@ -1,25 +1,200 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+author: Jhessica Kanda
 output: 
-  html_document:
+  html_document:  
     keep_md: true
 ---
 
 
 ## Loading and preprocessing the data
 
+Remove NA values first:
+
+```{r, echo=TRUE}
+        data_file <- read.csv("activity.csv", colClasses = "character", na.strings="NA");
+        cc <- complete.cases(data_file[1]);
+        data <- data_file[cc,];
+        head(data, 10);
+    
+```  
 
 
 ## What is mean total number of steps taken per day?
 
+1) Total number of steps taken each day
+
+```{r, echo=TRUE}
+    vsteps <- c()
+    vdate <- unique(data$date)
+    
+    for(i in 1:length(vdate)) {
+        dsub <- subset(data, date==vdate[i]);
+        value <- sum(as.numeric(dsub$steps));
+        vsteps[i] <- value;
+    }
+    
+    date_final <- strptime(vdate, format="%Y-%m-%d");
+    final_data_1 <- data.frame(vsteps, date_final, stringsAsFactors = FALSE);
+
+    plot(strptime(final_data_1[,2], format="%Y-%m-%d"), as.numeric(final_data_1[,1]), type = "h", xlab="Days", ylab="Steps", col="red", lwd = 4);    
+
+```  
+
+2) Calculate and report the **mean** and **median** total number of steps taken per day
+
+```{r, echo=TRUE}
+    vmean <- mean(vsteps);
+    print(paste("Mean: ", vmean));
+``` 
+
+```{r, echo=TRUE}
+    vmedian <- median(vsteps);
+    print(paste("Median: ", vmedian));
+``` 
 
 
 ## What is the average daily activity pattern?
 
+1) Average steps by interval 
 
+```{r, echo=TRUE}
+    vmean <- c()
+    vinterval <- unique(data$interval);
+    
+    for(i in 1:length(vinterval)) {
+        dsub <- subset(data, interval==vinterval[i]);
+        value <- mean(as.numeric(dsub$steps));
+        vmean[i] <- value;
+    }
+    
+    names <- c("steps", "interval");
+    final_data_2 <- data.frame(vmean, vinterval, stringsAsFactors = FALSE);
+    colnames(final_data_2) <- names;
+
+    plot(as.numeric(final_data_2[,2]), as.numeric(final_data_2[,1]), type = "l", xlab="Intervals", ylab="Steps", main = "Average steps across all days", col="blue");    
+```  
+
+2) The interval that contains the maximum number of steps is:
+
+```{r, echo=TRUE}
+    max_steps <- max(as.numeric(final_data_2$steps));
+    max_interval <- subset(final_data_2, steps==max_steps);
+    print(paste("Interval max number steps: ", max_interval$interval));
+
+```  
 
 ## Imputing missing values
 
+1) Number of missing values in the data set
+
+```{r, echo=TRUE}
+    nas <- nrow(data_file) - nrow(data);
+    print(paste("Number of NAs: ", nas));
+
+```  
+
+2) We are going to fill in the missing values of the date set with the mean value of the steps for that specific day. If the mean value for that day is NA, it will be replaced by 0(zero).
+
+3)
+
+    3.1 First calculate the value of mean steps per each day and save it in a vector:
+
+```{r, echo=TRUE}
+
+getMeanStepsPerDay <- function() {
+    data_all <- read.csv("activity.csv", colClasses = "character", na.strings="NA");
+    cc <- complete.cases(data_all[1]);
+    data_mean <- data_all[cc,];
+        
+    vdays <- unique(data_all$date);
+    vmeanSteps <- c();
+    
+    for(i in 1:length(vdays)) {
+        dsub <- subset(data_mean, date==vdays[i]);
+        value <- mean(as.numeric(dsub$steps));
+        vmeanSteps[i] <- as.numeric(value);
+        
+        if(is.nan(vmeanSteps[i])) {
+            vmeanSteps[i] = 0;
+        }
+    }
+    return (vmeanSteps)
+}
+
+```
+
+
+    3.2 Now replace the missing values in the data set, by the mean of that day:
+    
+```{r, echo=TRUE}
+    data_all <- read.csv("activity.csv", colClasses = "character", na.strings="NA");
+    v_mean <- getMeanStepsPerDay();
+    vdaysAll <- unique(data_all$date);
+    
+    for(n in 1:length(vdaysAll)) {
+        data_days <- data_all[data_all[,2] == vdaysAll[n], ];
+        data_days[is.na(data_days$steps), 1] <- round(v_mean[n], digits = 3);
+        if(n == 1) {
+            data_final <- data.frame(data_days);
+        }
+        if(n != 1) {
+            data_final <- rbind(data_final, data_days);
+        }
+    }
+    print(head(data_final, 30));
+
+```  
+
+4) The histogram differs when NA's are filled in.
+
+```{r, echo=TRUE}
+
+    plot(strptime(data_final[,2], format="%Y-%m-%d"), as.numeric(data_final[,1]), type = "h", xlab="Days", ylab="Steps", main="Mean of steps taken each day",col="red", lwd = 4);    
+
+```  
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r, echo=TRUE}
+    Sys.setlocale("LC_TIME", "English");
+    dates <- as.POSIXct(strptime(data_final$date, "%Y-%m-%d"));
+    
+    day <- c()
+    for(n in 1:length(dates)) {
+        d <- weekdays(dates[n]);
+        
+        if (d == "Saturday" || d == "Sunday") {
+            day[n] <- "Weekend";    
+        } else {
+            day[n] <- "Weekday";    
+        }
+        
+    }
+    
+    data_final_4 <- cbind(data_final, day);
+    data_weekday <- subset(data_final_4, day == "Weekday");
+    data_weekend <- subset(data_final_4, day == "Weekend");
+    
+    v_mean_weekday <- c()
+    v_mean_weekend <- c()
+
+    for (m in 1: length(vinterval)) {
+        a <- subset(data_weekday, interval == vinterval[m]) 
+        v_mean_weekday[m] <- round(mean(as.numeric(a$steps)), 3)
+        
+        b <- subset(data_weekend, interval == vinterval[m])
+        v_mean_weekend[m] <- round(mean(as.numeric(b$steps)), 3)
+    }    
+    
+    data_weekday <- cbind(data_weekday, v_mean_weekday)
+    data_weekend <- cbind(data_weekend, v_mean_weekend)
+    
+    par(mfrow= c(2,1));
+    
+    plot(as.numeric(data_weekend$interval), as.numeric(data_weekend$v_mean_weekend), type = "l", xlab="Intervals", ylab="Steps", col="blue", main = "Weekend");    
+    
+    plot(as.numeric(data_weekday$interval), as.numeric(data_weekday$v_mean_weekday), type = "l", xlab="Intervals", ylab="Steps", col="blue", main = "Weekday");    
+    
+```  
